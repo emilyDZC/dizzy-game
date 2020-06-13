@@ -29,11 +29,16 @@
 
 require "gosu"
 
-WIDTH, HEIGHT = 640, 480
+WIDTH, HEIGHT = 1280, 960
+
+module ZOrder
+  BACKGROUND, STARS, PLAYER, UI = *0..3
+end
 
 module Tiles
   Grass = 0
   Earth = 1
+  Water = 2
 end
 
 class CollectibleGem
@@ -52,7 +57,7 @@ end
 
 # Player class.
 class Player
-  attr_reader :x, :y
+  attr_reader :x, :y, :score
 
   def initialize(map, x, y)
     @x, @y = x, y
@@ -60,22 +65,27 @@ class Player
     @vy = 0 # Vertical velocity
     @map = map
     # Load all animation frames
-    @standing, @walk1, @walk2, @jump = *Gosu::Image.load_tiles("media/cptn_ruby.png", 50, 50)
+    # @standing = Gosu::Image.load_tiles("media/cptn_ruby.png", 50, 50)
+    # @walk1 = Gosu::Image.load_tiles("media/dizzy_front.png", 50, 50)
+    # @walk2 = Gosu::Image.load_tiles("media/dizzy_right.png", 50, 50)
+    # @jump = Gosu::Image.load_tiles("media/dizzy_up.png", 50, 50)
+    @standing, @walk1, @walk2, @jump = *Gosu::Image.load_tiles("media/dizzy_four_vector.png", 50, 50)
     # This always points to the frame that is currently drawn.
     # This is set in update, and used in draw.
-    @cur_image = @standing    
+    @cur_image = @standing
+    @score = 0    
   end
   
   def draw
     # Flip vertically when facing to the left.
     if @dir == :left
-      offs_x = -25
-      factor = 1.0
-    else
       offs_x = 25
       factor = -1.0
+    else
+      offs_x = -25
+      factor = 1.0
     end
-    @cur_image.draw(@x + offs_x, @y - 49, 0, factor, 1.0)
+    @cur_image.draw(@x + offs_x, @y - 49, 0, factor*1.75, 1.75)
   end
   
   # Could the object be placed at x + offs_x/y + offs_y without being stuck?
@@ -128,7 +138,13 @@ class Player
   def collect_gems(gems)
     # Same as in the tutorial game.
     gems.reject! do |c|
-      (c.x - @x).abs < 50 and (c.y - @y).abs < 50
+      if Gosu.distance(@x, @y, c.x, c.y) < 50
+        # (c.x - @x).abs < 50 and (c.y - @y).abs < 50
+        @score += 10
+        true
+      else
+        false
+      end
     end
   end
 end
@@ -140,8 +156,9 @@ class Map
   def initialize(filename)
     # Load 60x60 tiles, 5px overlap in all four directions.
     @tileset = Gosu::Image.load_tiles("media/tileset.png", 60, 60, tileable: true)
-
-    gem_img = Gosu::Image.new("media/gem.png")
+    water = Gosu::Image.new("media/water.png")
+    @tileset << water
+    gem_img = Gosu::Image.new("media/gold_star(1).png")
     @gems = []
 
     lines = File.readlines(filename).map { |line| line.chomp }
@@ -154,6 +171,8 @@ class Map
           Tiles::Grass
         when '#'
           Tiles::Earth
+        when '£'
+          Tiles::Water
         when 'x'
           @gems.push(CollectibleGem.new(gem_img, x * 50 + 25, y * 50 + 25))
           nil
@@ -173,7 +192,7 @@ class Map
         if tile
           # Draw the tile with an offset (tile images have some overlap)
           # Scrolling is implemented here just as in the game objects.
-          @tileset[tile].draw(x * 50 - 5, y * 50 - 5, 0)
+          @tileset[tile].draw(x * 50 - 5, y * 50 - 5, 0, 1.75, 1.75)
         end
       end
     end
@@ -186,21 +205,25 @@ class Map
   end
 end
 
-class CptnRuby < (Example rescue Gosu::Window)
+class CptnRuby < Gosu::Window
   def initialize
     super WIDTH, HEIGHT
     
     self.caption = "Cptn. Ruby"
     
-    @sky = Gosu::Image.new("media/space.png", tileable: true)
-    @map = Map.new("media/cptn_ruby_map.txt")
+    @sky = Gosu::Image.new("media/simple_background.png", tileable: true)
+    @map = Map.new("media/level2map.txt")
     @cptn = Player.new(@map, 400, 100)
     # The scrolling position is stored as top left corner of the screen.
     @camera_x = @camera_y = 0
+
+    @font = Gosu::Font.new(20)
   end
   
   def update
-    move_x = 0
+    # if @map.gems.count == 20
+      # end game
+    move_x = 0 
     move_x -= 5 if Gosu.button_down? Gosu::KB_LEFT
     move_x += 5 if Gosu.button_down? Gosu::KB_RIGHT
     @cptn.update(move_x)
@@ -211,11 +234,19 @@ class CptnRuby < (Example rescue Gosu::Window)
   end
   
   def draw
-    @sky.draw 0, 0, 0
+    fx = self.width/@sky.width.to_f
+    fy = self.height/@sky.height.to_f
+
+    @sky.draw(0, 0, 0, fx, fy)
     Gosu.translate(-@camera_x, -@camera_y) do
       @map.draw
       @cptn.draw
     end
+    @font.draw_text("Score: #{@cptn.score}", 10, 10, ZOrder::UI, 1.0, 1.0, Gosu::Color::YELLOW)
+    @font.draw_text("Height: #{self.height}", 50, 50, ZOrder::UI, 1.0, 1.0, Gosu::Color::RED)
+    @font.draw_text("Width: #{self.width}", 50, 80, ZOrder::UI, 1.0, 1.0, Gosu::Color::GREEN)
+    @font.draw_text("Sky height: #{@sky.height}", 50, 120, ZOrder::UI, 1.0, 1.0, Gosu::Color::RED)
+    @font.draw_text("Sky width: #{@sky.width}", 50, 140, ZOrder::UI, 1.0, 1.0, Gosu::Color::GREEN)
   end
   
   def button_down(id)

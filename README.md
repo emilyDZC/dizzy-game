@@ -1,5 +1,9 @@
-Gosu Examples
-=============
+# Dizzy
+
+Having a go at recreating one of my childhood favourite games! In Ruby using the 'Gosu' package
+
+
+### Gosu examples
 
 <img src="screenshot.png" width="526">
 
